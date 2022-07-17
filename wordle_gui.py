@@ -33,6 +33,13 @@ def draw_text(screen, x, y, w, h, text, color, size=40):
     screen.blit(text, text_rect)
 
 
+def remove_val(d, val):
+    new_dict = d.copy()
+    for key in list(d.keys()):
+        if d.get(key) == val:
+            d.pop(key)
+    #return new_dict
+
 class Letter:
     def __init__(self, x, y, width, height, bg_color, letter_col, character=""):
         self.x = x
@@ -41,7 +48,7 @@ class Letter:
         self.width = width
         self.height = height
         self.letter_color = letter_col
-        self.char = character
+        self.char = character.upper()
 
     def draw(self, display):
         pg.draw.rect(display, self.bg_color, (self.x, self.y, self.width, self.height))
@@ -55,15 +62,17 @@ class Letter:
 
 
 class Game:
-    def __init__(self, lines, display):
+    def __init__(self, lines, display, colors):
         # SET CONSTS
-        self.word = random.choice(lines)
-        lines.remove(self.word)
+        self.word = "TESTA"  # random.choice(lines)
+        # lines.remove(self.word)
         self.rows = []  # 2d list
         self.guessed_letters = []
         self.display = display
         self.last_letter = -1
         self.last_row = -1
+        self.colors = colors
+        self.game_over = False
 
     def keypress(self, key):
         letter = None
@@ -79,16 +88,16 @@ class Game:
         if letter is not None and letter.upper() in letters and self.can_type():
             # Write letter
             if self.last_letter < 4:
-                self.rows[self.last_row + 1][self.last_letter + 1].char = letter
+                self.rows[self.last_row + 1][self.last_letter + 1].char = letter.upper()
                 self.last_letter += 1
 
         elif key == pg.K_RETURN:
             if not self.can_type():
                 self.make_guess()
-                #TODO add win condition here instead and maybe check loss too?
+                # TODO add win condition here instead and maybe check loss too?
             else:
                 self.error("Must be 5 letters")
-        elif key == pg.K_BACKSPACE and self.last_letter >= 0:
+        elif key == pg.K_BACKSPACE and self.last_letter >= 0 and not self.game_over:
             self.back()
 
     def draw_board(self):
@@ -103,16 +112,49 @@ class Game:
         pass
 
     def check_win(self):
-        return self.join_letters(self.rows[self.last_row]).lower() == self.word.lower()
+        return self.join_letters(self.rows[self.last_row]).upper() == self.word.upper()
 
     def make_guess(self):
+        greens = []
+        letters_to_check = {}
+
+        for i in range(5):
+            letters_to_check[i] = self.word[i]
         # Change colors
-        print(self.last_row)
-        if self.last_row == 4:
-            print("Loss typ")
-        else:
+        # print(self.last_row)
+        # if self.last_row == 4:
+
+        #    print("Loss typ")
+        # else:
+
+        # First check all greens since they have priority
+        for i, ele in enumerate(self.rows[self.last_row + 1]):
+            if self.word[i].upper() == ele.char.upper():
+                ele.change_color(self.colors.get("green"))
+                #                color_change[ele] = self.colors.get("green")
+                letters_to_check.pop(i)
+                greens.append(i)
+
+        left = list(letters_to_check.keys())
+
+        for i in left:
+            letter = self.rows[self.last_row + 1][i]
+            if letter.char in list(letters_to_check.values()):
+                print("Found")
+                letter.change_color(self.colors.get("yellow"))
+                print(list(letters_to_check.values()))
+                remove_val(letters_to_check, letter.char.upper())
+                print(list(letters_to_check.values()))
+
+            # color_change[ele] = self.colors.get("yellow")
+
+            # print("Removed:", letters_to_check)
+
+        if self.last_row != 4:
             self.last_row += 1
             self.last_letter = -1
+        else:
+            self.game_over = True
 
         self.check_win()
 
@@ -120,7 +162,7 @@ class Game:
         pass
 
     def back(self):
-        print(self.last_letter)
+        # print(self.last_letter)
         if self.last_letter > -1:
             self.rows[self.last_row + 1][self.last_letter].char = ""
             self.last_letter -= 1
@@ -134,6 +176,9 @@ class Game:
 
     def can_type(self):
         return self.last_letter != 4
+
+    def find_guess(self, guess, right):
+        pass
 
 
 def main():
@@ -151,6 +196,13 @@ def main():
     dark_grey = (58, 58, 60)  # Wrong letters and keyboard
     light_grey = (129, 131, 132)  # Unused letters
     yellow = (181, 159, 59)
+
+    colors = {"white": white,
+              "green": green,
+              "black": black,
+              "dark_grey": dark_grey,
+              "light_grey": light_grey,
+              "yellow": yellow}
 
     # Keyboard
     outer_row_off = 75
@@ -176,7 +228,7 @@ def main():
 
     game_exit = False
 
-    g = Game(lines, display)
+    g = Game(lines, display, colors)
 
     # Create board
     for i in range(6):  # Rows
@@ -200,19 +252,20 @@ def main():
                 quit()
             if event.type == pg.KEYDOWN:
                 g.keypress(event.key)
-            if event.type == pg.MOUSEBUTTONDOWN:
-                print(pg.mouse.get_pos())
-                print(g.last_row)
+            # if event.type == pg.MOUSEBUTTONDOWN:
+            # print(pg.mouse.get_pos())
+            # print(g.last_row)
 
-        #g.check_win()
+        # g.check_win()
         pg.display.update()
         clock.tick(60)
+
+
 '''
     completed = False
     print("P = partly right (right letter wrong place)\nR = right\nW = wrong")
     print("Congratulations, you won!")
     print("(Right word = " + word[:-1] + ")")'''
-
 
 if __name__ == "__main__":
     main()

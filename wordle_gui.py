@@ -77,8 +77,9 @@ class Letter:
 class Game:
     def __init__(self, lines, display, colors):
         # SET CONSTS
-        self.word = "TESTA"  # random.choice(lines)
-        # lines.remove(self.word)
+        self.word = random.choice(lines)
+        lines.remove(self.word)
+        self.word = self.word[:-1].upper()
         self.rows = []  # 2d list
         self.guessed_letters = []
         self.display = display
@@ -144,7 +145,7 @@ class Game:
             letters_to_check = {}
 
             for i in range(5):
-                letters_to_check[i] = self.word[i]
+                letters_to_check[i] = self.word[i].upper()
             # Change colors
             # print(self.last_row)
             # if self.last_row == 4:
@@ -164,8 +165,7 @@ class Game:
 
             for i in left:
                 letter = self.rows[self.last_row + 1][i]
-                if letter.char in list(letters_to_check.values()):
-                    #print("Found")
+                if letter.char.upper() in list(letters_to_check.values()):
                     letter.change_color(self.colors.get("yellow"))
                     #print(list(letters_to_check.values()))
                     remove_val(letters_to_check, letter.char.upper())

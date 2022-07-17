@@ -25,20 +25,33 @@ while not completed:
 '''
 
 
-def draw_text(screen, x, y, w, h, text, color, size=40):
+def join_letters(letters):
+    wrd = ""
+    for i in letters:
+        wrd += i.char
+    return wrd
+
+
+def draw_text(text, color, x, y, w=60, h=60, size=40, ret=False, screen=None, origin="CORNER"):
     # draw text
     font = pg.font.Font(None, size)
     text = font.render(text, True, color)
-    text_rect = text.get_rect(center=(x + w / 2, y + h / 2))
-    screen.blit(text, text_rect)
+    if origin == "CORNER":
+        text_rect = text.get_rect(center=(x + w / 2, y + h / 2))
+    elif origin == "CENTER":
+        text_rect = text.get_rect(center=(x, y))
+
+    if not ret:
+        screen.blit(text, text_rect)
+    else:
+        return text, text_rect
 
 
 def remove_val(d, val):
-    new_dict = d.copy()
     for key in list(d.keys()):
         if d.get(key) == val:
             d.pop(key)
-    #return new_dict
+
 
 class Letter:
     def __init__(self, x, y, width, height, bg_color, letter_col, character=""):
@@ -52,7 +65,7 @@ class Letter:
 
     def draw(self, display):
         pg.draw.rect(display, self.bg_color, (self.x, self.y, self.width, self.height))
-        draw_text(display, self.x, self.y, self.width, self.height, self.char.upper(), self.letter_color)
+        draw_text(self.char.upper(), self.letter_color, self.x, self.y, self.width, self.height, screen=display)
 
     def change_color(self, new_col):
         if len(new_col) == 3 and not any(val > 255 for val in new_col):
@@ -72,7 +85,8 @@ class Game:
         self.last_letter = -1
         self.last_row = -1
         self.colors = colors
-        self.game_over = False
+        self.dialog_count = 0
+        self.dialog_message = ""
 
     def keypress(self, key):
         letter = None
@@ -92,12 +106,13 @@ class Game:
                 self.last_letter += 1
 
         elif key == pg.K_RETURN:
-            if not self.can_type():
+            if not self.can_type() and not self.game_over():
                 self.make_guess()
                 # TODO add win condition here instead and maybe check loss too?
-            else:
-                self.error("Must be 5 letters")
-        elif key == pg.K_BACKSPACE and self.last_letter >= 0 and not self.game_over:
+            elif self.can_type():
+                self.dialog("Måste vara 5 bokstäver")
+
+        elif key == pg.K_BACKSPACE and self.last_letter >= 0 and not self.game_over():
             self.back()
 
     def draw_board(self):
@@ -112,54 +127,74 @@ class Game:
         pass
 
     def check_win(self):
-        return self.join_letters(self.rows[self.last_row]).upper() == self.word.upper()
+        return join_letters(self.rows[self.last_row]).upper() == self.word.upper()
+
+    def generate_board(self, board_left_off, board_letter_size, board_letter_off, board_top_off):
+        # Create board
+        for i in range(6):  # Rows
+            row = []
+            for j in range(5):  # Cols
+                row.append(Letter(board_left_off + j * (board_letter_size + board_letter_off), board_top_off + i * (board_letter_size + board_letter_off),
+                                  board_letter_size, board_letter_size, self.colors.get("light_grey"), self.colors.get("white")))
+            self.rows.append(row)
 
     def make_guess(self):
-        greens = []
-        letters_to_check = {}
+        if not self.game_over():
+            greens = []
+            letters_to_check = {}
 
-        for i in range(5):
-            letters_to_check[i] = self.word[i]
-        # Change colors
-        # print(self.last_row)
-        # if self.last_row == 4:
+            for i in range(5):
+                letters_to_check[i] = self.word[i]
+            # Change colors
+            # print(self.last_row)
+            # if self.last_row == 4:
 
-        #    print("Loss typ")
-        # else:
+            #    print("Loss typ")
+            # else:
 
-        # First check all greens since they have priority
-        for i, ele in enumerate(self.rows[self.last_row + 1]):
-            if self.word[i].upper() == ele.char.upper():
-                ele.change_color(self.colors.get("green"))
-                #                color_change[ele] = self.colors.get("green")
-                letters_to_check.pop(i)
-                greens.append(i)
+            # First check all greens since they have priority
+            for i, ele in enumerate(self.rows[self.last_row + 1]):
+                if self.word[i].upper() == ele.char.upper():
+                    ele.change_color(self.colors.get("green"))
+                    #                color_change[ele] = self.colors.get("green")
+                    letters_to_check.pop(i)
+                    greens.append(i)
 
-        left = list(letters_to_check.keys())
+            left = list(letters_to_check.keys())
 
-        for i in left:
-            letter = self.rows[self.last_row + 1][i]
-            if letter.char in list(letters_to_check.values()):
-                print("Found")
-                letter.change_color(self.colors.get("yellow"))
-                print(list(letters_to_check.values()))
-                remove_val(letters_to_check, letter.char.upper())
-                print(list(letters_to_check.values()))
+            for i in left:
+                letter = self.rows[self.last_row + 1][i]
+                if letter.char in list(letters_to_check.values()):
+                    #print("Found")
+                    letter.change_color(self.colors.get("yellow"))
+                    #print(list(letters_to_check.values()))
+                    remove_val(letters_to_check, letter.char.upper())
+                    #print(list(letters_to_check.values()))
 
-            # color_change[ele] = self.colors.get("yellow")
+                # color_change[ele] = self.colors.get("yellow")
 
-            # print("Removed:", letters_to_check)
+            if self.last_row != 5:
+                self.last_row += 1
+                self.last_letter = -1
+            else:
+                self.last_row += 1
 
-        if self.last_row != 4:
-            self.last_row += 1
-            self.last_letter = -1
-        else:
-            self.game_over = True
+        if self.check_win():
+            self.dialog("Rätt, du vann!")
+        elif not self.check_win() and self.game_over():
+            self.dialog(f"Slut på gissningar, rätt ord var: {self.word}")
 
-        self.check_win()
+    def dialog(self, message):
+        self.dialog_count = 120
+        self.dialog_message = message
 
-    def error(self, message):
-        pass
+    def draw_dialog(self, display, width):
+        #text, text_rect = draw_text(self.dialog_message, self.colors.get("white"), width/2, 80, origin="CENTER", ret=True)
+
+        text, text_rect = draw_text(self.dialog_message, self.colors.get("black"), width/2, 50, origin="CENTER", ret=True, size=30)
+
+        pg.draw.rect(display, self.colors.get("white"), (text_rect.x - 10, text_rect.y - 15, text_rect.width + 20, text_rect.height + 30))
+        display.blit(text, text_rect)
 
     def back(self):
         # print(self.last_letter)
@@ -167,18 +202,14 @@ class Game:
             self.rows[self.last_row + 1][self.last_letter].char = ""
             self.last_letter -= 1
 
-    @staticmethod
-    def join_letters(letters):
-        wrd = ""
-        for i in letters:
-            wrd += i.char
-        return wrd
-
     def can_type(self):
-        return self.last_letter != 4
+        return self.last_letter != 4 and not self.game_over()
 
     def find_guess(self, guess, right):
         pass
+
+    def game_over(self):
+        return self.check_win() or self.last_row == 5
 
 
 def main():
@@ -228,44 +259,44 @@ def main():
 
     game_exit = False
 
+    # Create game instance
     g = Game(lines, display, colors)
 
-    # Create board
-    for i in range(6):  # Rows
-        row = []
-        for j in range(5):  # Cols
-            row.append(Letter(board_left_off + j * (board_letter_size + board_letter_off), board_top_off + i * (board_letter_size + board_letter_off),
-                              board_letter_size, board_letter_size, light_grey, white))
-        g.rows.append(row)
+    # Generate board
+    g.generate_board(board_left_off, board_letter_size, board_letter_off, board_top_off)
 
     # Create keyboard
-
+    restart = False
+    # Game loop
     while not game_exit:
-        display.fill(black)
+        if restart:
+            g = Game(lines, display, colors)
+            g.generate_board(board_left_off, board_letter_size, board_letter_off, board_top_off)
+            restart = False
 
+        display.fill(black)
         g.draw_board()
         g.draw_keyboard()
+
+        if g.dialog_count > 0:
+            g.draw_dialog(display, WIDTH)
+            g.dialog_count -= 1
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
                 quit()
-            if event.type == pg.KEYDOWN:
-                g.keypress(event.key)
-            # if event.type == pg.MOUSEBUTTONDOWN:
-            # print(pg.mouse.get_pos())
-            # print(g.last_row)
 
-        # g.check_win()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_r and g.game_over():
+                    restart = True
+                    break
+                else:
+                    g.keypress(event.key)
+
         pg.display.update()
         clock.tick(60)
 
-
-'''
-    completed = False
-    print("P = partly right (right letter wrong place)\nR = right\nW = wrong")
-    print("Congratulations, you won!")
-    print("(Right word = " + word[:-1] + ")")'''
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,6 @@
 import pygame as pg
 import random
+import time
 
 '''
 while not completed:
@@ -42,6 +43,8 @@ def draw_text(text, color, x, y, w=60, h=60, size=40, ret=False, screen=None, or
         text_rect = text.get_rect(center=(x, y))
 
     if not ret:
+        if screen is None:
+            raise ValueError("screen cant be none if ret is false")
         screen.blit(text, text_rect)
     else:
         return text, text_rect
@@ -51,6 +54,13 @@ def remove_val(d, val):
     for key in list(d.keys()):
         if d.get(key) == val:
             d.pop(key)
+
+
+def find_letter(let, lets):
+    for row in lets:
+        for i in row:
+            if i.char == let:
+                return i
 
 
 class Letter:
@@ -80,7 +90,8 @@ class Game:
         self.word = random.choice(lines)
         lines.remove(self.word)
         self.word = self.word[:-1].upper()
-        self.rows = []  # 2d list
+        self.board_rows = []  # 2d list
+        self.keyboard_rows = []
         self.guessed_letters = []
         self.display = display
         self.last_letter = -1
@@ -103,7 +114,7 @@ class Game:
         if letter is not None and letter.upper() in letters and self.can_type():
             # Write letter
             if self.last_letter < 4:
-                self.rows[self.last_row + 1][self.last_letter + 1].char = letter.upper()
+                self.board_rows[self.last_row + 1][self.last_letter + 1].char = letter.upper()
                 self.last_letter += 1
 
         elif key == pg.K_RETURN:
@@ -117,18 +128,17 @@ class Game:
             self.back()
 
     def draw_board(self):
-        for row in self.rows:
+        for row in self.board_rows:
             for tile in row:
                 tile.draw(self.display)
 
-    def create_keyboard(self):
-        pass
-
     def draw_keyboard(self):
-        pass
+        for row in self.keyboard_rows:
+            for key in row:
+                key.draw(self.display)
 
     def check_win(self):
-        return join_letters(self.rows[self.last_row]).upper() == self.word.upper()
+        return join_letters(self.board_rows[self.last_row]).upper() == self.word.upper()
 
     def generate_board(self, board_left_off, board_letter_size, board_letter_off, board_top_off):
         # Create board
@@ -137,7 +147,20 @@ class Game:
             for j in range(5):  # Cols
                 row.append(Letter(board_left_off + j * (board_letter_size + board_letter_off), board_top_off + i * (board_letter_size + board_letter_off),
                                   board_letter_size, board_letter_size, self.colors.get("light_grey"), self.colors.get("white")))
-            self.rows.append(row)
+            self.board_rows.append(row)
+
+    def generate_keyboard(self, board_letters, win_height, outer_row_off, keyboard_letter_right_dist, keyboard_letter_width, keyboard_letter_top_dist, keyboard_letter_height):
+        third_row = 0
+        for i, row in enumerate(board_letters):
+            obj_row = []
+            for j, key in enumerate(row):
+                if key == "Z":
+                    third_row = 2
+
+                obj_row.append(Letter(outer_row_off + (j + third_row) * (keyboard_letter_right_dist + keyboard_letter_width),
+                                      3 * win_height / 4 + i * (keyboard_letter_top_dist + keyboard_letter_height), keyboard_letter_width,
+                                      keyboard_letter_height, self.colors.get("light_grey"), self.colors.get("white"), key))
+            self.keyboard_rows.append(obj_row)
 
     def make_guess(self):
         if not self.game_over():
@@ -154,9 +177,10 @@ class Game:
             # else:
 
             # First check all greens since they have priority
-            for i, ele in enumerate(self.rows[self.last_row + 1]):
+            for i, ele in enumerate(self.board_rows[self.last_row + 1]):
                 if self.word[i].upper() == ele.char.upper():
                     ele.change_color(self.colors.get("green"))
+                    find_letter(ele.char, self.keyboard_rows).change_color(self.colors.get("yellow"))
                     #                color_change[ele] = self.colors.get("green")
                     letters_to_check.pop(i)
                     greens.append(i)
@@ -164,12 +188,17 @@ class Game:
             left = list(letters_to_check.keys())
 
             for i in left:
-                letter = self.rows[self.last_row + 1][i]
+                letter = self.board_rows[self.last_row + 1][i]
                 if letter.char.upper() in list(letters_to_check.values()):
                     letter.change_color(self.colors.get("yellow"))
-                    #print(list(letters_to_check.values()))
+                    keyboard_letter = find_letter(letter.char, self.keyboard_rows)
+
+                    print(keyboard_letter.char, keyboard_letter.bg_color)
+                    if keyboard_letter.bg_color != self.colors.get("green"):
+                        keyboard_letter.change_color(self.colors.get("yellow"))
+                    # print(list(letters_to_check.values()))
                     remove_val(letters_to_check, letter.char.upper())
-                    #print(list(letters_to_check.values()))
+                    # print(list(letters_to_check.values()))
 
                 # color_change[ele] = self.colors.get("yellow")
 
@@ -189,9 +218,9 @@ class Game:
         self.dialog_message = message
 
     def draw_dialog(self, display, width):
-        #text, text_rect = draw_text(self.dialog_message, self.colors.get("white"), width/2, 80, origin="CENTER", ret=True)
+        # text, text_rect = draw_text(self.dialog_message, self.colors.get("white"), width/2, 80, origin="CENTER", ret=True)
 
-        text, text_rect = draw_text(self.dialog_message, self.colors.get("black"), width/2, 50, origin="CENTER", ret=True, size=30)
+        text, text_rect = draw_text(self.dialog_message, self.colors.get("black"), width / 2, 50, origin="CENTER", ret=True, size=30)
 
         pg.draw.rect(display, self.colors.get("white"), (text_rect.x - 10, text_rect.y - 15, text_rect.width + 20, text_rect.height + 30))
         display.blit(text, text_rect)
@@ -199,7 +228,7 @@ class Game:
     def back(self):
         # print(self.last_letter)
         if self.last_letter > -1:
-            self.rows[self.last_row + 1][self.last_letter].char = ""
+            self.board_rows[self.last_row + 1][self.last_letter].char = ""
             self.last_letter -= 1
 
     def can_type(self):
@@ -236,7 +265,7 @@ def main():
               "yellow": yellow}
 
     # Keyboard
-    outer_row_off = 75
+    outer_row_off = 60
     inner_row_off = 100
     keyboard_letter_top_dist = 8
     keyboard_letter_right_dist = 6
@@ -251,8 +280,6 @@ def main():
     board_letter_off = 5
     board_letter_size = 60
 
-    board_keyboard_diff = 125
-
     # Read words
     with open("words.txt") as f:
         lines = f.readlines()
@@ -265,18 +292,29 @@ def main():
     # Generate board
     g.generate_board(board_left_off, board_letter_size, board_letter_off, board_top_off)
 
-    # Create keyboard
+    letters = [
+                ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Å"],
+                ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Ö", "Ä"],
+                ["Z", "X", "C", "V", "B", "N", "M"]]
+
+    # Generate keyboard
+    g.generate_keyboard(letters, HEIGHT, outer_row_off, keyboard_letter_right_dist, keyboard_letter_width, keyboard_letter_top_dist, keyboard_letter_height)
+
     restart = False
     # Game loop
+    start_time = time.process_time()
     while not game_exit:
+
         if restart:
             g = Game(lines, display, colors)
             g.generate_board(board_left_off, board_letter_size, board_letter_off, board_top_off)
+            g.generate_keyboard(letters, HEIGHT, outer_row_off, keyboard_letter_right_dist, keyboard_letter_width, keyboard_letter_top_dist, keyboard_letter_height)
             restart = False
 
         display.fill(black)
         g.draw_board()
         g.draw_keyboard()
+        draw_text(str(round(time.process_time() - start_time, 1)), colors.get("white"), 100, 50, screen=display, origin="CORNER")
 
         if g.dialog_count > 0:
             g.draw_dialog(display, WIDTH)
@@ -293,6 +331,8 @@ def main():
                     break
                 else:
                     g.keypress(event.key)
+            if event.type == pg.MOUSEBUTTONDOWN:
+                print(pg.mouse.get_pos())
 
         pg.display.update()
         clock.tick(60)
